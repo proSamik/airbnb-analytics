@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -12,43 +13,72 @@ import (
 )
 
 // checkAndCreateDatabase verifies if the required database exists and creates it if not.
-// It establishes a connection to PostgreSQL and performs the necessary checks.
+// It establishes a connection to PostgresSQL and performs the necessary checks.
 //
 // Returns:
 //   - error: Any error encountered during database verification or creation
 func checkAndCreateDatabase() (err error) {
+	// Retrieve environment variables with explicit checks
+	host := os.Getenv("DB_HOST")
+	port := os.Getenv("DB_PORT")
+	user := os.Getenv("DB_USER")
+	password := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+
+	// Construct connection string for default postgres database
 	connectionString := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s sslmode=disable",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
+		"host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
+		host, port, user, password,
 	)
 
+	// Open database connection with timeout
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
-		return fmt.Errorf("error connecting to postgres: %v", err)
+		return fmt.Errorf("failed to open database connection: %w", err)
 	}
 
+	// Use a named return value to handle deferred close
 	defer func() {
-		if closeErr := db.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("error closing database connection: %v", closeErr)
+		closeErr := db.Close()
+		if closeErr != nil {
+			// If there's an error closing the DB and no previous error exists
+			if err == nil {
+				err = fmt.Errorf("error closing database connection: %w", closeErr)
+			} else {
+				// Log the close error if there's already an existing error
+				log.Printf("Additional error closing database connection: %v", closeErr)
+			}
 		}
 	}()
 
-	dbName := os.Getenv("DB_NAME")
-	var exists bool
-	query := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
-	err = db.QueryRow(query, dbName).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("error checking database existence: %v", err)
+	// Set connection parameters
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Verify connection with ping
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err = db.PingContext(ctx); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
+	// Check if database exists
+	var exists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
+	err = db.QueryRow(checkQuery, dbName).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("error checking database existence: %w", err)
+	}
+
+	// Create database if not exists
 	if !exists {
-		log.Printf("Creating database %s...", dbName)
-		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbName))
+		log.Printf("Creating database: %s", dbName)
+		createDBQuery := fmt.Sprintf("CREATE DATABASE %s", dbName)
+		_, err = db.Exec(createDBQuery)
 		if err != nil {
-			return fmt.Errorf("error creating database: %v", err)
+			return fmt.Errorf("failed to create database %s: %w", dbName, err)
 		}
 		log.Printf("Database %s created successfully", dbName)
 	} else {

@@ -150,6 +150,28 @@ func round(num float64) float64 {
 	return float64(int(num*100)) / 100
 }
 
+// connectDatabase establishes a database connection with retry mechanism
+func connectDatabase(connectionString string) (*sql.DB, error) {
+	const maxRetries = 5
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		db, err := sql.Open("postgres", connectionString)
+		if err != nil {
+			return nil, fmt.Errorf("database connection error on attempt %d: %w", attempt, err)
+		}
+
+		// Test connection
+		if err := db.Ping(); err == nil {
+			log.Printf("Database connection successful on attempt %d", attempt)
+			return db, nil
+		}
+
+		log.Printf("Connection attempt %d failed: %v", attempt, err)
+		time.Sleep(time.Second * time.Duration(attempt))
+	}
+
+	return nil, fmt.Errorf("failed to connect to database after %d attempts", maxRetries)
+}
+
 // main is the entry point of the database setup script.
 // It performs the following operations in order:
 // 1. Establishes database connection using DATABASE_URL
@@ -162,11 +184,11 @@ func main() {
 		log.Fatal("DATABASE_URL environment variable not set")
 	}
 
-	db, err := sql.Open("postgres", connectionString)
+	// Connect to database
+	db, err := connectDatabase(connectionString)
 	if err != nil {
-		log.Fatal("Error connecting to database:", err)
+		log.Fatalf("Database connection failed: %v", err)
 	}
-
 	defer func() {
 		if err := db.Close(); err != nil {
 			log.Printf("Error closing database connection: %v", err)

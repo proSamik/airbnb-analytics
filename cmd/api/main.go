@@ -1,51 +1,65 @@
 package main
 
 import (
-    "encoding/json"
-    "log"
-    "net/http"
-    "airbnb-analytics/internal/service"
-    "github.com/gorilla/mux"
+	"airbnb-analytics/internal/handlers"
+	"airbnb-analytics/internal/middleware"
+	"airbnb-analytics/internal/service"
+	"github.com/gorilla/mux"
+	"log"
+	"net/http"
 )
 
+// main initializes and starts the HTTP server with configured routes
+// and middleware on port 8080.
 func main() {
-    roomService := service.NewRoomService()
-    router := mux.NewRouter()
+	// Initialize services
+	roomService := service.NewRoomService()
 
-    // CORS middleware
-    router.Use(func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            w.Header().Set("Access-Control-Allow-Origin", "*")
-            w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-            w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-            
-            if r.Method == "OPTIONS" {
-                w.WriteHeader(http.StatusOK)
-                return
-            }
-            
-            next.ServeHTTP(w, r)
-        })
-    })
+	// Initialize router
+	router := setupRouter(roomService)
 
-    // Room analytics endpoint
-    router.HandleFunc("/{roomId}", func(w http.ResponseWriter, r *http.Request) {
-        vars := mux.Vars(r)
-        roomID := vars["roomId"]
+	// Start server
+	startServer(router)
+}
 
-        analytics, err := roomService.GetRoomAnalytics(roomID)
-        if err != nil {
-            w.WriteHeader(http.StatusInternalServerError)
-            json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-            return
-        }
+// setupRouter initializes and configures the router with all middleware and handlers.
+// Parameters:
+//   - roomService *service.RoomService: Service handling room analytics logic
+//
+// Returns:
+//   - *mux.Router: Configured router instance
+func setupRouter(roomService *service.RoomService) *mux.Router {
+	router := mux.NewRouter()
 
-        w.Header().Set("Content-Type", "application/json")
-        json.NewEncoder(w).Encode(analytics)
-    }).Methods("GET", "OPTIONS")
+	// Apply middleware
+	router.Use(middleware.CORS)
 
-    log.Printf("Server starting on port 8080...")
-    if err := http.ListenAndServe(":8080", router); err != nil {
-        log.Fatal(err)
-    }
+	// Register routes
+	registerRoutes(router, roomService)
+
+	return router
+}
+
+// registerRoutes sets up all API endpoints for the application.
+// Parameters:
+//   - router *mux.Router: Router to register routes on
+//   - roomService *service.RoomService: Service for room analytics
+func registerRoutes(router *mux.Router, roomService *service.RoomService) {
+	// Room analytics endpoint
+	router.HandleFunc("/{roomId}",
+		handlers.HandleRoomAnalytics(roomService),
+	).Methods("GET", "OPTIONS")
+}
+
+// startServer starts the HTTP server on the specified port.
+// If the server fails to start, it logs the error and exits.
+// Parameters:
+//   - router *mux.Router: Configured router to use for the server
+func startServer(router *mux.Router) {
+	const port = ":8080"
+	log.Printf("Server starting on port %s...", port)
+
+	if err := http.ListenAndServe(port, router); err != nil {
+		log.Fatal(err)
+	}
 }

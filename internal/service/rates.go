@@ -14,7 +14,7 @@ import (
 //   - models.RateAnalytics: Calculated rate statistics
 func calculateRateAnalytics(data []models.RoomData) models.RateAnalytics {
 	var rates []float64
-	currentTime := time.Now()
+	currentTime := time.Now().Truncate(24 * time.Hour) // Start from beginning of today
 	thirtyDaysFromNow := currentTime.AddDate(0, 0, 30)
 
 	// Collect rates for next 30 days

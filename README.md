@@ -5,60 +5,181 @@ A Go service that provides analytics for Airbnb room bookings, including occupan
 ## Prerequisites
 
 Before running the application, ensure you have the following installed:
-
 * Go 1.20 or higher
-* Node.js and npm
-* json-server (Install globally: `npm install -g json-server`)
+* PostgreSQL 12 or higher
 
-## Setup & Running
+## Project Setup
 
-### 1. Clone the Repository
+### PostgreSQL Setup
 
-```bash
-git clone <repository-url>
-cd <repository-name>
-```
+1. **Install PostgreSQL**
+   ```bash
+   # For Ubuntu/Debian
+   sudo apt update
+   sudo apt install postgresql postgresql-contrib
 
-### 2. Install Dependencies
+   # For MacOS using Homebrew
+   brew install postgresql
+   ```
 
-```bash
-go mod download
-```
+2. **Start PostgreSQL Service**
+   ```bash
+   # For Ubuntu/Debian
+   sudo systemctl start postgresql
+   sudo systemctl enable postgresql
 
-### 3. Start Mock API Server
+   # For MacOS
+   brew services start postgresql@14
+   ```
 
-Open a new terminal and run:
-```bash
-cd mock_data
-json-server --watch db.json --port 3001
-```
+3. **Configure PostgreSQL**
+   ```bash
+   # Access PostgreSQL prompt
+   sudo -u postgres psql
 
-### 4. Start API Server
+   # Create user (if needed)
+   CREATE USER your_username WITH PASSWORD 'your_password';
 
-In a separate terminal, from the project root:
-```bash
-go run cmd/api/main.go
-```
+   # Grant privileges (optional)
+   ALTER USER your_username WITH SUPERUSER;
 
-The server will start on `http://localhost:8080`
+   # Exit PostgreSQL prompt
+   \q
+   ```
+
+### Go Setup
+
+1. **Install Go**
+   ```bash
+   # Download Go from official website
+   # For Linux: https://golang.org/dl/
+   wget https://go.dev/dl/go1.20.linux-amd64.tar.gz
+
+   # Extract and install
+   sudo rm -rf /usr/local/go
+   sudo tar -C /usr/local -xzf go1.20.linux-amd64.tar.gz
+
+   # Add to PATH in ~/.bashrc or ~/.zshrc
+   export PATH=$PATH:/usr/local/go/bin
+   ```
+
+2. **Verify Go Installation**
+   ```bash
+   go version
+   ```
+
+### Project Dependencies
+
+1. **Install Required Go Packages**
+   ```bash
+   # PostgreSQL driver
+   go get github.com/lib/pq
+
+   # Environment variables
+   go get github.com/joho/godotenv
+
+   # Router
+   go get github.com/gorilla/mux
+   ```
+
+### Project Configuration
+
+1. **Clone Repository**
+   ```bash
+   git clone https://github.com/proSamik/airbnb-analytics
+   cd airbnb-analytics
+   ```
+
+2. **Create Environment File**
+   ```bash
+   # Create .env file in project root
+   touch .env
+
+   # Add following configurations
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_USER=your_username
+   DB_PASSWORD=your_password
+   DB_NAME=airbnb_analytics
+   ```
+
+3. **Initialize Database**
+   ```bash
+   # Run database setup script
+   go run scripts/db_setup.go
+   ```
+
+4. **Verify Setup**
+   ```bash
+   # Connect to database
+   psql -U your_username -d airbnb_analytics
+
+   # Check tables
+   \dt
+
+   # Check sample data
+   SELECT * FROM room_bookings LIMIT 5;
+   ```
+
+### Running the Application
+
+1. **Start the Server**
+   ```bash
+   go run cmd/api/main.go
+   ```
+
+2. **Test the API**
+   ```bash
+   # Get all room IDs
+   curl http://localhost:8080/rooms
+
+   # Get analytics for a specific room
+   curl http://localhost:8080/{roomId}
+   ```
+
+### Common Issues and Solutions
+
+1. **PostgreSQL Connection Issues**
+  - Verify PostgreSQL is running:
+    ```bash
+    sudo systemctl status postgresql
+    ```
+  - Check connection settings in .env file
+  - Ensure database user has proper permissions
+
+2. **Database Setup Issues**
+  - Make sure PostgreSQL user has permission to create databases
+  - Check if database already exists:
+    ```bash
+    psql -U postgres -l
+    ```
+
+3. **Go Module Issues**
+  - Ensure you're in the project directory
+  - Run `go mod tidy` to clean up dependencies
+  - Verify go.mod file exists and is correct
 
 ## API Usage
 
-### Get Room Analytics
+### Get All Room IDs
+```bash
+GET /rooms
+```
+Example request:
+```bash
+curl http://localhost:8080/rooms
+```
 
+### Get Room Analytics
 ```bash
 GET /{roomId}
 ```
-
 Example request:
 ```bash
 curl http://localhost:8080/{roomId}
 ```
 
-Replace `{roomId}` with a valid room ID from `mock_data/README.md`.
-
 ### Response Format
-
 ```json
 {
     "room_id": "string",
@@ -77,74 +198,124 @@ Replace `{roomId}` with a valid room ID from `mock_data/README.md`.
 ```
 
 ## Important Notes
-
-* Mock API server must be running on port 3001 before starting the main server
-* Main server runs on port 8080
-* Check  [mock_data/README.md](mock_data/README.md) for valid room IDs
+* PostgreSQL must be running and accessible
+* Environment variables must be properly configured
 * The API supports CORS for cross-origin requests
+* Analytics are calculated for:
+  - Occupancy: Next 5 months
+  - Rates: Next 30 days
 
 ## Error Handling
-
 The API returns appropriate HTTP status codes and error messages:
-
+* 400: Bad Request (invalid room ID)
 * 404: Room not found
 * 500: Internal server error
-* Error responses are in JSON format:
-  ```json
-  {
-      "error": "error message"
-  }
-  ```
----
+
+Error responses are in JSON format:
+```json
+{
+    "error": "error message"
+}
+```
 
 ## Assumptions
 
-1. **Data Source**
-- The room occupancy and daily rate data is assumed to be provided by Airbnb's API
-- A mock API server has been implemented to simulate this data source
+1. **Data Storage**
+  - Room data is stored in PostgreSQL database
+  - Each room has daily records for booking status and rates
+  - Data is generated for 7 months from current date
 
 2. **Data Format**
-- Room rates are stored as floating-point values
-- Dates in the data are in "YYYY-MM-DD" format
+  - Room IDs follow pattern: Letter followed by 3 digits (e.g., "A123")
+  - Room rates are stored as decimal(10,2)
+  - Dates are stored in DATE format
 
 3. **Data Continuity**
-- The dataset contains continuous dates without any gaps
-- Each room has complete booking information for all consecutive dates in the range
+  - Each room has continuous daily records
+  - No gaps in date sequences
+  - Booking status and rates are available for all dates
+
+## Project Structure
+```
+.
+├── cmd/
+│   └── api/            # Application entry point
+├── internal/
+│   ├── database/       # Database connection management
+│   ├── handlers/       # HTTP request handlers
+│   ├── middleware/     # HTTP middleware
+│   ├── models/         # Data models
+│   ├── repository/     # Database operations
+│   └── service/        # Business logic
+├── scripts/
+│   └── db_setup.go     # Database initialization
+└── .env                # Environment configuration
+```
+
+### Note: This project is in the development branch.
 
 ---
 
 ## Development Challenges & Solutions
 
-### 1. Data Source Design
+### 1. Database Design & Setup
 **Challenge:**
-- Needed to determine appropriate data structure and source for room analytics
-- Had to decide the starting point for the data timeline
+- Needed to determine appropriate database schema for room analytics
+- Had to handle database initialization and mock data generation
+- Required proper error handling for database operations
 
 **Solution:**
-- Implemented a mock JSON API to simulate Airbnb's data structure
-- Used current date as the reference point for all calculations
-- Structured data with daily room rates and booking status
+- Implemented PostgreSQL schema with optimized indexes for querying
+- Created automated setup script for database and table creation
+- Used transaction-safe operations for data consistency
+- Added robust error handling for database operations
 
 ### 2. Rate Analytics Implementation
 **Challenge:**
-- Initially calculated rates for the entire dataset instead of the next 30 days
-- Needed to ensure accurate rate calculations within the specified timeframe
+- Required efficient querying of rate data within specific date ranges
+- Needed precise decimal handling for rate calculations
+- Had to ensure thread-safe database operations
 
 **Solution:**
-- Implemented date filtering to only consider next 30 days from current date
-- Added validation to ensure rate calculations only use relevant data points
-- Used floating-point values for precise rate calculations
+- Used PostgreSQL DATE type for efficient date range queries
+- Implemented DECIMAL(10,2) for precise rate storage
+- Created optimized SQL queries with proper indexing
+- Added proper date filtering in repository layer
 
 ### 3. Occupancy Rate Calculations
 **Challenge:**
-- Complex logic required for calculating monthly occupancy rates
-- Needed to handle edge cases at month boundaries
-- Required consistent calculation method across different months
+- Complex logic required for monthly occupancy aggregation
+- Needed to handle timezone considerations in date calculations
+- Required efficient data retrieval for date ranges
 
 **Solution:**
-- Implemented a rolling 5-month window starting from current month
-- Created a structured approach to aggregate daily bookings into monthly statistics
-- Added date validation to ensure accuracy of occupancy calculations
-- Implemented sorting to ensure consistent month-wise data presentation
+- Implemented date truncation to handle timezone consistency
+- Created efficient repository methods for date range queries
+- Used SQL date casting for accurate comparisons
+- Added proper validation for date boundaries
 
+### 4. Error Handling & Data Integrity
+**Challenge:**
+- Required comprehensive error handling across layers
+- Needed to ensure database connection stability
+- Had to handle concurrent database operations
+
+**Solution:**
+- Implemented structured error handling in all layers
+- Added proper connection pooling for database operations
+- Created middleware for consistent error responses
+- Used defer patterns for resource cleanup
+- Added validation for all database operations
+
+### 5. API Design & Implementation
+**Challenge:**
+- Needed clean separation of concerns across layers
+- Required consistent error handling and response formats
+- Had to ensure proper CORS handling
+
+**Solution:**
+- Implemented repository pattern for database operations
+- Created service layer for business logic
+- Added consistent error response format
+- Implemented CORS middleware for cross-origin requests
 ---

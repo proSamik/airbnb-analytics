@@ -2,56 +2,47 @@ package service
 
 import (
 	"airbnb-analytics/internal/models"
-	"encoding/json"
+	"airbnb-analytics/internal/repository"
 	"fmt"
-	"net/http"
+	"time"
 )
 
-// RoomService handles room analytics operations and API interactions.
+// RoomService handles room analytics operations and database interactions.
+// It processes raw booking data to generate occupancy and rate analytics.
 type RoomService struct {
-	mockAPIURL string
+	repo *repository.RoomRepository
 }
 
 // NewRoomService creates and returns a new RoomService instance
-// with configured mock API URL.
+// with configured repository.
 // Returns:
-//   - *RoomService: New room service instance
+//   - *RoomService: New room service instance configured with repository
 func NewRoomService() *RoomService {
 	return &RoomService{
-		mockAPIURL: "http://localhost:3001/rooms",
+		repo: repository.NewRoomRepository(),
 	}
 }
 
 // GetRoomAnalytics retrieves and processes analytics data for a specific room.
+// It calculates occupancy rates for the next 5 months and rate analytics for
+// the next 30 days from the current date.
 // Parameters:
 //   - roomID string: Unique identifier for the room
 //
 // Returns:
-//   - *models.AnalyticsResponse: Processed analytics data
-//   - error: Any error encountered during the operation
+//   - *models.AnalyticsResponse: Processed analytics data containing occupancy and rate statistics
+//   - error: Any error encountered during data retrieval or processing
 func (s *RoomService) GetRoomAnalytics(roomID string) (response *models.AnalyticsResponse, err error) {
-	resp, err := http.Get(s.mockAPIURL)
+	// Get data for next 5 months from today
+	startDate := time.Now().Truncate(24 * time.Hour) // Start from beginning of today
+	endDate := startDate.AddDate(0, 5, 0)
+
+	roomData, err := s.repo.GetRoomData(roomID, startDate, endDate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch room data: %v", err)
 	}
 
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close response body: %v", closeErr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error: %d", resp.StatusCode)
-	}
-
-	var roomsData map[string][]models.RoomData
-	if err := json.NewDecoder(resp.Body).Decode(&roomsData); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
-	}
-
-	roomData, exists := roomsData[roomID]
-	if !exists {
+	if len(roomData) == 0 {
 		return nil, fmt.Errorf("room not found")
 	}
 
@@ -63,4 +54,17 @@ func (s *RoomService) GetRoomAnalytics(roomID string) (response *models.Analytic
 		MonthlyOccupancy: occupancy,
 		RateAnalytics:    rateAnalytics,
 	}, nil
+}
+
+// GetAllRooms retrieves a list of all available room IDs from the database.
+// This can be used to get an overview of all rooms in the system.
+// Returns:
+//   - []string: List of unique room identifiers
+//   - error: Any error encountered during the database operation
+func (s *RoomService) GetAllRooms() ([]string, error) {
+	roomIDs, err := s.repo.GetAllRoomIDs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch room IDs: %v", err)
+	}
+	return roomIDs, nil
 }

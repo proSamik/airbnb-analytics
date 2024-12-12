@@ -19,8 +19,8 @@ func calculateMonthlyOccupancy(data []models.RoomData) []models.MonthlyOccupancy
 		total  int
 	})
 
-	currentTime := time.Now()
-	fiveMonthsFromNow := currentTime.AddDate(0, 5, 0)
+	currentTime := time.Now().Truncate(24 * time.Hour) // Start from beginning of today
+	fiveMonthsFromNow := currentTime.AddDate(0, 4, 0)
 
 	// Calculate monthly statistics
 	for _, booking := range data {

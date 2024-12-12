@@ -1,17 +1,35 @@
 package main
 
 import (
+	"airbnb-analytics/internal/database"
 	"airbnb-analytics/internal/handlers"
 	"airbnb-analytics/internal/middleware"
 	"airbnb-analytics/internal/service"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 )
 
-// main initializes and starts the HTTP server with configured routes
-// and middleware on port 8080.
+// main initializes and starts the HTTP server.
+// It performs the following operations in order:
+// 1. Loads environment variables from .env file
+// 2. Initializes database connection
+// 3. Sets up services and routing
+// 4. Starts HTTP server on port 8080
+//
+// The server will exit if any initialization step fails.
 func main() {
+	// Load environment variables
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Initialize database connection
+	if err := database.InitDB(); err != nil {
+		log.Fatal("Error initializing database:", err)
+	}
+
 	// Initialize services
 	roomService := service.NewRoomService()
 
@@ -22,12 +40,16 @@ func main() {
 	startServer(router)
 }
 
-// setupRouter initializes and configures the router with all middleware and handlers.
+// setupRouter initializes and configures the HTTP router.
+// It sets up middleware and routes for the application.
+//
 // Parameters:
-//   - roomService *service.RoomService: Service handling room analytics logic
+//   - roomService *service.RoomService: Service instance handling room analytics logic
 //
 // Returns:
-//   - *mux.Router: Configured router instance
+//   - *mux.Router: Configured router instance ready for use
+//
+// The router is configured with CORS middleware and all application routes.
 func setupRouter(roomService *service.RoomService) *mux.Router {
 	router := mux.NewRouter()
 
@@ -40,21 +62,35 @@ func setupRouter(roomService *service.RoomService) *mux.Router {
 	return router
 }
 
-// registerRoutes sets up all API endpoints for the application.
+// registerRoutes configures all API endpoints for the application.
+// It sets up the following routes:
+// - GET /rooms: Returns list of all available room IDs
+// - GET /{roomId}: Returns analytics for a specific room
+//
 // Parameters:
-//   - router *mux.Router: Router to register routes on
-//   - roomService *service.RoomService: Service for room analytics
+//   - router *mux.Router: Router instance to register routes on
+//   - roomService *service.RoomService: Service handling room analytics operations
+//
+// Each route supports both GET and OPTIONS methods for CORS compatibility.
 func registerRoutes(router *mux.Router, roomService *service.RoomService) {
-	// Room analytics endpoint
+	// Get all available room IDs
+	router.HandleFunc("/rooms",
+		handlers.HandleGetAllRooms(roomService),
+	).Methods("GET", "OPTIONS")
+
+	// Get analytics for a specific room
 	router.HandleFunc("/{roomId}",
 		handlers.HandleRoomAnalytics(roomService),
 	).Methods("GET", "OPTIONS")
 }
 
-// startServer starts the HTTP server on the specified port.
-// If the server fails to start, it logs the error and exits.
+// startServer initializes and starts the HTTP server.
+// It listens on port 8080 and handles incoming HTTP requests.
+//
 // Parameters:
-//   - router *mux.Router: Configured router to use for the server
+//   - router *mux.Router: Configured router to handle incoming requests
+//
+// The function will log fatal error and exit if server fails to start.
 func startServer(router *mux.Router) {
 	const port = ":8080"
 	log.Printf("Server starting on port %s...", port)

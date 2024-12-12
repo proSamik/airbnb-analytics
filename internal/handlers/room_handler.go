@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"net/http"
+	"strings"
 )
 
 // HandleRoomAnalytics creates a handler for room analytics requests.
@@ -18,9 +19,19 @@ func HandleRoomAnalytics(roomService *service.RoomService) http.HandlerFunc {
 		vars := mux.Vars(r)
 		roomID := vars["roomId"]
 
+		// Validate room ID
+		if strings.TrimSpace(roomID) == "" {
+			handleError(w, "room ID is required", http.StatusBadRequest)
+			return
+		}
+
 		analytics, err := roomService.GetRoomAnalytics(roomID)
 		if err != nil {
-			handleError(w, err)
+			if err.Error() == "room not found" {
+				handleError(w, "room not found", http.StatusNotFound)
+				return
+			}
+			handleError(w, "failed to fetch room analytics", http.StatusInternalServerError)
 			return
 		}
 
@@ -28,13 +39,37 @@ func HandleRoomAnalytics(roomService *service.RoomService) http.HandlerFunc {
 	}
 }
 
+// HandleGetAllRooms creates a handler for retrieving all available room IDs.
+// Parameters:
+//   - roomService *service.RoomService: Service for room operations
+//
+// Returns:
+//   - http.HandlerFunc: Handler function for getting all rooms endpoint
+func HandleGetAllRooms(roomService *service.RoomService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rooms, err := roomService.GetAllRooms()
+		if err != nil {
+			handleError(w, "failed to fetch rooms", http.StatusInternalServerError)
+			return
+		}
+
+		if len(rooms) == 0 {
+			sendJSONResponse(w, map[string][]string{"rooms": {}})
+			return
+		}
+
+		sendJSONResponse(w, map[string][]string{"rooms": rooms})
+	}
+}
+
 // handleError processes and sends an error response to the client.
 // Parameters:
 //   - w http.ResponseWriter: Response writer to send error
-//   - err error: Error to process and send
-func handleError(w http.ResponseWriter, err error) {
-	w.WriteHeader(http.StatusInternalServerError)
-	if encodeErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encodeErr != nil {
+//   - message string: Error message to send
+//   - statusCode int: HTTP status code
+func handleError(w http.ResponseWriter, message string, statusCode int) {
+	w.WriteHeader(statusCode)
+	if encodeErr := json.NewEncoder(w).Encode(map[string]string{"error": message}); encodeErr != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }

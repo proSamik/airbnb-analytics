@@ -5,8 +5,8 @@ import (
 	"airbnb-analytics/internal/handlers"
 	"airbnb-analytics/internal/middleware"
 	"airbnb-analytics/internal/service"
-	"encoding/json"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
@@ -21,6 +21,12 @@ import (
 //
 // The server will exit if any initialization step fails.
 func main() {
+	// Load environment variables, don't fail if .env doesn't exist
+	if err := godotenv.Load(); err != nil {
+		// Just log warning since .env is optional in production
+		log.Fatalf("Warning: .env file not found: %v", err)
+	}
+
 	// Initialize database connection
 	if err := database.InitDB(); err != nil {
 		log.Fatal("Error initializing database:", err)
@@ -60,7 +66,6 @@ func setupRouter(roomService *service.RoomService) *mux.Router {
 
 // registerRoutes configures all API endpoints for the application.
 // It sets up the following routes:
-// - GET /health: Health check endpoint
 // - GET /rooms: Returns list of all available room IDs
 // - GET /{roomId}: Returns analytics for a specific room
 //
@@ -70,18 +75,6 @@ func setupRouter(roomService *service.RoomService) *mux.Router {
 //
 // Each route supports both GET and OPTIONS methods for CORS compatibility.
 func registerRoutes(router *mux.Router, roomService *service.RoomService) {
-	// Health check endpoint
-	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{
-			"status":  "healthy",
-			"message": "Service is running",
-		}); err != nil {
-			log.Printf("Error encoding health check response: %v", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-	}).Methods("GET")
 
 	// Get all available room IDs
 	router.HandleFunc("/rooms",

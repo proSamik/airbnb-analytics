@@ -31,10 +31,14 @@ var DB *sql.DB
 // Returns:
 //   - error: Any error encountered during connection initialization
 func InitDB() error {
-	connectionString := os.Getenv("DATABASE_URL")
-	if connectionString == "" {
-		return fmt.Errorf("DATABASE_URL environment variable not set")
-	}
+	connectionString := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_NAME"),
+	)
 
 	var err error
 	DB, err = sql.Open("postgres", connectionString)

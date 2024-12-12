@@ -8,8 +8,56 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
+
+// checkAndCreateDatabase verifies if the required database exists and creates it if not.
+// It establishes a connection to PostgreSQL and performs the necessary checks.
+//
+// Returns:
+//   - error: Any error encountered during database verification or creation
+func checkAndCreateDatabase() (err error) {
+	connectionString := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s sslmode=disable",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+	)
+
+	db, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		return fmt.Errorf("error connecting to postgres: %v", err)
+	}
+
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("error closing database connection: %v", closeErr)
+		}
+	}()
+
+	dbName := os.Getenv("DB_NAME")
+	var exists bool
+	query := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
+	err = db.QueryRow(query, dbName).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("error checking database existence: %v", err)
+	}
+
+	if !exists {
+		log.Printf("Creating database %s...", dbName)
+		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbName))
+		if err != nil {
+			return fmt.Errorf("error creating database: %v", err)
+		}
+		log.Printf("Database %s created successfully", dbName)
+	} else {
+		log.Printf("Database %s already exists", dbName)
+	}
+
+	return nil
+}
 
 // checkAndCreateTables verifies if required tables exist and creates them if not.
 // It creates the room_bookings table with necessary indexes for efficient querying.
@@ -150,45 +198,37 @@ func round(num float64) float64 {
 	return float64(int(num*100)) / 100
 }
 
-// connectDatabase establishes a database connection with retry mechanism
-func connectDatabase(connectionString string) (*sql.DB, error) {
-	const maxRetries = 5
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		db, err := sql.Open("postgres", connectionString)
-		if err != nil {
-			return nil, fmt.Errorf("database connection error on attempt %d: %w", attempt, err)
-		}
-
-		// Test connection
-		if err := db.Ping(); err == nil {
-			log.Printf("Database connection successful on attempt %d", attempt)
-			return db, nil
-		}
-
-		log.Printf("Connection attempt %d failed: %v", attempt, err)
-		time.Sleep(time.Second * time.Duration(attempt))
-	}
-
-	return nil, fmt.Errorf("failed to connect to database after %d attempts", maxRetries)
-}
-
 // main is the entry point of the database setup script.
 // It performs the following operations in order:
-// 1. Establishes database connection using DATABASE_URL
-// 2. Creates necessary tables
-// 3. Generates and inserts mock data
-// 4. Prints generated room IDs
+// 1. Loads environment variables
+// 2. Creates database if it doesn't exist
+// 3. Establishes database connection
+// 4. Creates necessary tables
+// 5. Generates and inserts mock data
+// 6. Prints generated room IDs
 func main() {
-	connectionString := os.Getenv("DATABASE_URL")
-	if connectionString == "" {
-		log.Fatal("DATABASE_URL environment variable not set")
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
 	}
 
-	// Connect to database
-	db, err := connectDatabase(connectionString)
-	if err != nil {
-		log.Fatalf("Database connection failed: %v", err)
+	if err := checkAndCreateDatabase(); err != nil {
+		log.Fatal(err)
 	}
+
+	connectionString := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_NAME"),
+	)
+
+	db, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		log.Fatal("Error connecting to database:", err)
+	}
+
 	defer func() {
 		if err := db.Close(); err != nil {
 			log.Printf("Error closing database connection: %v", err)

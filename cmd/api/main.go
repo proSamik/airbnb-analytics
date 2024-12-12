@@ -96,12 +96,19 @@ func registerRoutes(router *mux.Router, roomService *service.RoomService) {
 //
 // The function will log fatal error and exit if server fails to start.
 func startServer(router *mux.Router) {
+	// Read PORT from environment variable
 	port := os.Getenv("PORT")
+
+	// Default to 8080 if PORT is not set
 	if port == "" {
-		port = "8080" // default port if not set
+		port = "8080"
 	}
 
+	// Log the port for debugging
 	log.Printf("Server starting on port %s...", port)
+
+	// Bind to all network interfaces (0.0.0.0) on the specified port
+	// The ":" before port means listen on all interfaces
 	if err := http.ListenAndServe(":"+port, router); err != nil {
 		log.Fatal(err)
 	}

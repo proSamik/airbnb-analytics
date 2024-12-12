@@ -7,7 +7,6 @@ import (
 	"airbnb-analytics/internal/service"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
@@ -22,11 +21,6 @@ import (
 //
 // The server will exit if any initialization step fails.
 func main() {
-	// Load environment variables, don't fail if .env doesn't exist
-	if err := godotenv.Load(); err != nil {
-		// Just log warning since .env is optional in production
-		log.Fatalf("Warning: .env file not found: %v", err)
-	}
 
 	// Initialize database connection
 	if err := database.InitDB(); err != nil {

@@ -5,6 +5,7 @@ import (
 	"airbnb-analytics/internal/handlers"
 	"airbnb-analytics/internal/middleware"
 	"airbnb-analytics/internal/service"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"log"
@@ -96,20 +97,27 @@ func registerRoutes(router *mux.Router, roomService *service.RoomService) {
 //
 // The function will log fatal error and exit if server fails to start.
 func startServer(router *mux.Router) {
-	// Read PORT from environment variable
+	// Explicitly use Render's default port
 	port := os.Getenv("PORT")
-
-	// Default to 8080 if PORT is not set
 	if port == "" {
-		port = "8080"
+		port = "10000" // Render's default port
 	}
 
-	// Log the port for debugging
-	log.Printf("Server starting on port %s...", port)
+	// Explicitly bind to 0.0.0.0
+	serverAddr := fmt.Sprintf("0.0.0.0:%s", port)
 
-	// Bind to all network interfaces (0.0.0.0) on the specified port
-	// The ":" before port means listen on all interfaces
-	if err := http.ListenAndServe(":"+port, router); err != nil {
-		log.Fatal(err)
+	log.Printf("Server starting on %s", serverAddr)
+
+	// Create server with more explicit configuration
+	server := &http.Server{
+		Addr:    serverAddr,
+		Handler: router,
+	}
+
+	// Additional logging for port detection
+	log.Println("Listening on port:", port)
+
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
 	}
 }

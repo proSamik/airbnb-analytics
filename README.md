@@ -5,7 +5,7 @@ A Go service that provides analytics for Airbnb room bookings, including occupan
 ## Prerequisites
 
 Before running the application, ensure you have the following installed:
-* Go 1.20 or higher
+* Go 1.23 or higher
 * PostgreSQL 12 or higher
 
 ## Project Setup
@@ -235,28 +235,28 @@ Error responses are in JSON format:
   - No gaps in date sequences
   - Booking status and rates are available for all dates
 
-## Project Structure
-```
-.
-├── cmd/
-│   └── api/            # Application entry point
-├── internal/
-│   ├── database/       # Database connection management
-│   ├── handlers/       # HTTP request handlers
-│   ├── middleware/     # HTTP middleware
-│   ├── models/         # Data models
-│   ├── repository/     # Database operations
-│   └── service/        # Business logic
-├── scripts/
-│   └── db_setup.go     # Database initialization
-└── .env                # Environment configuration
-```
-
 ### Note: This project is in the development branch.
 
 ---
 
 ## Development Challenges & Solutions
+
+### 0. Containerization and Environment Configuration
+**Challenge:**
+- Struggled with creating reproducible deployment environments
+- Faced significant complexity in linking environment variables across different platforms
+- Experienced prolonged deployment issues due to configuration inconsistencies
+- Spent extensive time and resources troubleshooting container and environment setups
+- Multiple deployment attempts across different platforms revealed configuration complexities
+
+**Solution:**
+- Implemented comprehensive Docker configurations
+- Created standardized environment variable management
+- Developed a systematic approach to container deployment
+- Used multi-stage Docker builds for efficient resource management
+- Established consistent environment configuration across development and production environments
+- Utilized platform-specific environment injection techniques
+- Created detailed documentation for deployment processes
 
 ### 1. Database Design & Setup
 **Challenge:**

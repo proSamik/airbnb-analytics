@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -218,10 +217,6 @@ func round(num float64) float64 {
 // 5. Generates and inserts mock data
 // 6. Prints generated room IDs
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
 	if err := checkAndCreateDatabase(); err != nil {
 		log.Fatal(err)
 	}

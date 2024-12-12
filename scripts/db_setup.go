@@ -18,12 +18,24 @@ import (
 // Returns:
 //   - error: Any error encountered during database verification or creation
 func checkAndCreateDatabase() (err error) {
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+
+	log.Printf("DB_HOST: %s", dbHost)
+	log.Printf("DB_PORT: %s", dbPort)
+	log.Printf("DB_USER: %s", dbUser)
+	log.Printf("DB_PASSWORD: %s", dbPassword)
+	log.Printf("DB_NAME: %s", dbName)
+
 	connectionString := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s sslmode=disable",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
+		dbHost,
+		dbPort,
+		dbUser,
+		dbPassword,
 	)
 
 	db, err := sql.Open("postgres", connectionString)
@@ -37,7 +49,6 @@ func checkAndCreateDatabase() (err error) {
 		}
 	}()
 
-	dbName := os.Getenv("DB_NAME")
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
 	err = db.QueryRow(query, dbName).Scan(&exists)
